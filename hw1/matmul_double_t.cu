@@ -7,7 +7,7 @@
 #include <cstdlib>
 #include <math.h>
 
-# define BLK_SIZE 32
+# define BLK_SIZE 4
 #define EC(ans) { chkerr((ans), __FILE__, __LINE__); }
 inline void chkerr(cudaError_t code, const char *file, int line)
 {
@@ -24,15 +24,15 @@ void init (double *A, double *B, int M , int N, int K)
     {
         for (int j = 0; j < K; ++j)
         {
-            A[i * K + j] = i * K + j;
+            A[i * K + j] = i; //i * K + j;
         }
     }
 
-    for (int i = 0; i < K; ++i)
+    for (int i = 0; i < N; ++i)
     {
-        for (int j = 0; j < N; ++j)
+        for (int j = 0; j < K; ++j)
         {
-            B[i * N + j] = i * N + j + 1;
+            B[i * K + j] = i; //i * N + j + 1;
         }
     }
 
@@ -49,7 +49,7 @@ void matmul_double_host(double* A, double* B, double* C, int M, int N, int K)
 
             for (int k = 0; k < K; ++k)
             {
-                tmp += A[i * K + k] * B[k * N + j];
+                tmp += A[i * K + k] * B[j * K + k];
             }
 
             C[i * N + j] = tmp;
@@ -83,17 +83,40 @@ __global__ void matmul_double(double* A, double* B , double* C, int M, int N, in
     int row = by * blockDim.y + ty;
     int col = bx * blockDim.x + tx;
 
-    double temp = 0;
    
-    if(row >= M || col >= N)
-	    return;
+    //if(row >= M || col >= N)
+    //	    return;
 
-    for(int i=0;i<K;i++){
-      temp+= A[row*K + i] * B[i*N +col];
-    }
+    __shared__ float SA[BLK_SIZE][BLK_SIZE];
+    __shared__ float SB[BLK_SIZE][BLK_SIZE];
     
-    int id = row * N + col;
-    C[id] = temp;
+    double temp = 0;
+
+    int klimit = K + BLK_SIZE - 1;
+
+    for(int tilek=0;tilek<klimit;tilek+=BLK_SIZE){
+      if(tilek + tx < K && row < M)
+      	SA[ty][tx] = A[row*K + (tilek + tx)];
+      else
+        SA[ty][tx] = 0.0;
+
+      if((bx*BLK_SIZE+ty)<N && tx+tilek < K)
+        SB[ty][tx] = B[(bx*BLK_SIZE+ty)*K+(tx+tilek)];
+      else
+        SB[ty][tx] = 0.0;
+
+      __syncthreads();
+      for(int i=0;i<BLK_SIZE;i++){
+        temp+= SA[ty][i] * SB[tx][i];
+      }
+      __syncthreads();
+    }
+
+
+    if(row < M && col <N){
+      int id = row * N + col;
+      C[id] = temp;
+    }
  
 }
 

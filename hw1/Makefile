@@ -16,7 +16,7 @@ NVCCFLAGS=--gpu-architecture=compute_61 --gpu-code=sm_61 -O3
 
 CC=nvcc
 
-all: $(EXECNT) 
+all: $(EXECNT) $(EXECT) 
 	@echo "Change line 18 in Makefile to \"all: \$$(EXECNT) \$$(EXECT)\" to build both T and NT versions"
 
 $(EXECNT): $(OBJSNT)

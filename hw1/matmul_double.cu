@@ -7,7 +7,7 @@
 #include <cstdlib>
 #include <math.h>
 
-# define BLK_SIZE 4
+# define BLK_SIZE 32
 #define EC(ans) { chkerr((ans), __FILE__, __LINE__); }
 inline void chkerr(cudaError_t code, const char *file, int line)
 {
