@@ -24,7 +24,7 @@ void init (double *A, double *B, int M , int N, int K)
     {
         for (int j = 0; j < K; ++j)
         {
-            A[i * K + j] = i * K + j;
+            A[i * K + j] = i; //i * K + j;
         }
     }
 
@@ -32,7 +32,7 @@ void init (double *A, double *B, int M , int N, int K)
     {
         for (int j = 0; j < N; ++j)
         {
-            B[i * N + j] = i * N + j + 1;
+            B[i * N + j] = j; //i * N + j + 1;
         }
     }
 
@@ -92,11 +92,7 @@ __global__ void matmul_double(double* A, double* B , double* C, int M, int N, in
     
     double temp = 0;
 
-    int klimit = K;
-
-    if(M%BLK_SIZE!=0 || N%BLK_SIZE!=0 || K%BLK_SIZE!=0){
-	    klimit = max(max(ceil(float(M)/BLK_SIZE), ceil(float(N)/BLK_SIZE)), ceil(float(K)/BLK_SIZE));
-    }
+    int klimit = K + BLK_SIZE - 1;
 
     for(int tilek=0;tilek<klimit;tilek+=BLK_SIZE){
       if(tilek + tx < K && row < M)
