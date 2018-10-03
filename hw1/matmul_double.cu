@@ -94,7 +94,7 @@ __global__ void matmul_double(double* A, double* B , double* C, int M, int N, in
 
     for(int tilek=0;tilek<K;tilek+=BLK_SIZE){
       SA[ty][tx] = A[row*K + (tilek + tx)];
-      SB[ty][tx] = B[(tilek+ty) * K + col];
+      SB[ty][tx] = B[(tilek+ty) * N + col];
       __syncthreads();
       for(int i=0;i<BLK_SIZE;i++){
         temp+= SA[ty][i] * SB[i][tx];
