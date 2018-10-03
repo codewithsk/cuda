@@ -112,8 +112,11 @@ __global__ void matmul_double(double* A, double* B , double* C, int M, int N, in
       __syncthreads();
     }
 
-    int id = row * N + col;
-    C[id] = temp;
+
+    if(row < M && col <N){
+      int id = row * N + col;
+      C[id] = temp;
+    }
  
 }
 
