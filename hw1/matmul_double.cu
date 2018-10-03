@@ -24,7 +24,7 @@ void init (double *A, double *B, int M , int N, int K)
     {
         for (int j = 0; j < K; ++j)
         {
-            A[i * K + j] = i * K + j;
+            A[i * K + j] = i; //i * K + j;
         }
     }
 
@@ -32,7 +32,7 @@ void init (double *A, double *B, int M , int N, int K)
     {
         for (int j = 0; j < N; ++j)
         {
-            B[i * N + j] = i * N + j + 1;
+            B[i * N + j] = j; //i * N + j + 1;
         }
     }
 
@@ -94,7 +94,7 @@ __global__ void matmul_double(double* A, double* B , double* C, int M, int N, in
 
     for(int tilek=0;tilek<K;tilek+=BLK_SIZE){
       SA[ty][tx] = A[row*K + (tilek + tx)];
-      SB[ty][tx] = B[(tilek*ty) * N + col];
+      SB[ty][tx] = B[(tilek+ty) * K + col];
       __syncthreads();
       for(int i=0;i<BLK_SIZE;i++){
         temp+= SA[ty][i] * SB[i][tx];

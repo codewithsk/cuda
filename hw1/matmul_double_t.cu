@@ -3,31 +3,11 @@
  * compile: nvcc --gpu-architecture=compute_60 --gpu-code=sm_60 -O3 matmul_double.cu -o matmul_double
  */
 
-/* Required answers
- * Name of executable must be matmul_double
- * The executable must accept m, n, k as parameters
- * Report GFLOPS for:
-   *  for i in 4, 8, 10, 11
-       for j in 4, 8, 10, 11 m,n=power(2,i)
-         k = power(2,j)
-   * m=4095,n=4097,k=125
- * Report number of following for m=2047, n = 2049, k=125:
-   * Read DRAM transactions
-   * Write DRAM transactions
-   * Shared memory reads/transaction
-   * Shared memory write/transaction
- * Report number of following for m=2048, n = 2048, k=128:
-   * Read DRAM transactions
-   * Write DRAM transactions
-   * Shared memory reads/transaction
-   * Shared memory write/transaction
- */
-
-
 #include <iostream>
 #include <cstdlib>
+#include <math.h>
 
-
+# define BLK_SIZE 32
 #define EC(ans) { chkerr((ans), __FILE__, __LINE__); }
 inline void chkerr(cudaError_t code, const char *file, int line)
 {
@@ -77,10 +57,6 @@ void matmul_double_host(double* A, double* B, double* C, int M, int N, int K)
     }
 }
 
-__global__ void matmul_double(double* A, double* B , double* C, int M, int N, int K)
-{
-    /// complete code
-}
 
 void validate (double *host, double *gpu, int M, int N)
 {
@@ -97,6 +73,29 @@ void validate (double *host, double *gpu, int M, int N)
     }
 }
 
+__global__ void matmul_double(double* A, double* B , double* C, int M, int N, int K)
+{
+    int bx = blockIdx.x;
+    int by = blockIdx.y;
+    int tx = threadIdx.x;
+    int ty = threadIdx.y;
+
+    int row = by * blockDim.y + ty;
+    int col = bx * blockDim.x + tx;
+
+    double temp = 0;
+   
+    if(row >= M || col >= N)
+	    return;
+
+    for(int i=0;i<K;i++){
+      temp+= A[row*K + i] * B[i*N +col];
+    }
+    
+    int id = row * N + col;
+    C[id] = temp;
+ 
+}
 
 int main(int argc, char *argv[])
 {
@@ -117,7 +116,10 @@ int main(int argc, char *argv[])
     double *dtohC = (double*) malloc (M * N * sizeof(double));
 
     /* Device alloc */
-    /// complete code
+    double *dA, *dB, *dC;
+    cudaMalloc((void**) &dA, M*K*sizeof(double));    
+    cudaMalloc((void**) &dB, K*N*sizeof(double));    
+    cudaMalloc((void**) &dC, M*N*sizeof(double));    
 
     /* Initialize host memory*/
     init(hA, hB, M, N, K);
@@ -125,21 +127,27 @@ int main(int argc, char *argv[])
     /* host compute */
     matmul_double_host(hA, hB, hC, M, N, K);
 
-
     /* Copy from host to device */
-    /// complete code
-
+    cudaMemcpy(dA, hA, M*K*sizeof(double), cudaMemcpyHostToDevice);
+    cudaMemcpy(dB, hB, K*N*sizeof(double), cudaMemcpyHostToDevice);
 
     /* call gpu kernel */
-    /// complete code
+    dim3 threads(BLK_SIZE, BLK_SIZE);
+    dim3 grid(ceil(N/float(BLK_SIZE)),ceil(M/float(BLK_SIZE)));
 
+    printf("Number of threads in a block %dx%d\n",(int)BLK_SIZE, (int)BLK_SIZE);
+    printf("Number of blocks in a grid %dx%d\n",(int)ceil(N/float(BLK_SIZE)),(int)ceil(M/float(BLK_SIZE)));
+
+    matmul_double<<<grid, threads>>>(dA, dB, dC, M, N, K);
+    
+    std::cerr << cudaGetErrorString(cudaGetLastError()) << std::endl;
+    
     /* Copy from device to host (dC -> dtohC) */
-    /// complete code
+    cudaMemcpy(dtohC, dC, M*N*sizeof(double), cudaMemcpyDeviceToHost);
 
 
     /* host vs device validation */
     validate(hC, dtohC, M, N);
-
 
     /* be clean */
     free(hA);
@@ -148,7 +156,9 @@ int main(int argc, char *argv[])
     free(dtohC);
 
     /// add code to free gpu memory
-
+    cudaFree(dA);
+    cudaFree(dB);
+    cudaFree(dC);
 
     return 0;
 }

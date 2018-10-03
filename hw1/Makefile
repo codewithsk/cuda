@@ -12,7 +12,7 @@ EXECT=$(SRCT:.cu=)
 OBJSNT=$(SRCNT:.cu=.o)
 OBJST=$(SRCT:.cu=.o)
 
-NVCCFLAGS=--gpu-architecture=compute_60 --gpu-code=sm_60 -O3
+NVCCFLAGS=--gpu-architecture=compute_61 --gpu-code=sm_61 -O3
 
 CC=nvcc
 
