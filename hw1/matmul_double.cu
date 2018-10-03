@@ -83,18 +83,24 @@ __global__ void matmul_double(double* A, double* B , double* C, int M, int N, in
     int row = by * blockDim.y + ty;
     int col = bx * blockDim.x + tx;
 
-    double temp = 0;
    
     if(row >= M || col >= N)
 	    return;
 
-    //__shared__ float SA[BLK_SIZE][BLK_SIZE];
-    //__shared__ float SB[BLK_SIZE][BLK_SIZE];
-
-    for(int i=0;i<K;i++){
-      temp+= A[row*K + i] * B[i*N +col];
-    }
+    __shared__ float SA[BLK_SIZE][BLK_SIZE];
+    __shared__ float SB[BLK_SIZE][BLK_SIZE];
     
+    double temp = 0;
+
+    for(int tilek=0;tilek<K;tilek+=BLK_SIZE){
+      SA[ty][tx] = A[row*K + (tilek + tx)];
+      SB[ty][tx] = B[(tilek*ty) * N + col];
+      __syncthreads();
+      for(int i=0;i<BLK_SIZE;i++){
+        temp+= SA[ty][i] * SB[i][tx];
+      }
+      __syncthreads();
+    }
     int id = row * N + col;
     C[id] = temp;
  
