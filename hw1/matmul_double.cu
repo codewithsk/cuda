@@ -7,7 +7,7 @@
 #include <cstdlib>
 #include <math.h>
 
-# define BLK_SIZE 32
+# define BLK_SIZE 4
 #define EC(ans) { chkerr((ans), __FILE__, __LINE__); }
 inline void chkerr(cudaError_t code, const char *file, int line)
 {
@@ -24,7 +24,7 @@ void init (double *A, double *B, int M , int N, int K)
     {
         for (int j = 0; j < K; ++j)
         {
-            A[i * K + j] = i; //i * K + j;
+            A[i * K + j] = i * K + j;
         }
     }
 
@@ -32,7 +32,7 @@ void init (double *A, double *B, int M , int N, int K)
     {
         for (int j = 0; j < N; ++j)
         {
-            B[i * N + j] = j; //i * N + j + 1;
+            B[i * N + j] = i * N + j + 1;
         }
     }
 
@@ -84,23 +84,38 @@ __global__ void matmul_double(double* A, double* B , double* C, int M, int N, in
     int col = bx * blockDim.x + tx;
 
    
-    if(row >= M || col >= N)
-	    return;
+    //if(row >= M || col >= N)
+    //	    return;
 
     __shared__ float SA[BLK_SIZE][BLK_SIZE];
     __shared__ float SB[BLK_SIZE][BLK_SIZE];
     
     double temp = 0;
 
-    for(int tilek=0;tilek<K;tilek+=BLK_SIZE){
-      SA[ty][tx] = A[row*K + (tilek + tx)];
-      SB[ty][tx] = B[(tilek+ty) * N + col];
+    int klimit = K;
+
+    if(M%BLK_SIZE!=0 || N%BLK_SIZE!=0 || K%BLK_SIZE!=0){
+	    klimit = max(max(ceil(float(M)/BLK_SIZE), ceil(float(N)/BLK_SIZE)), ceil(float(K)/BLK_SIZE));
+    }
+
+    for(int tilek=0;tilek<klimit;tilek+=BLK_SIZE){
+      if(tilek + tx < K && row < M)
+      	SA[ty][tx] = A[row*K + (tilek + tx)];
+      else
+        SA[ty][tx] = 0.0;
+
+      if(tilek + ty < K && col < N)
+        SB[ty][tx] = B[(tilek+ty) * N + col];
+      else
+        SB[ty][tx] = 0.0;
+
       __syncthreads();
       for(int i=0;i<BLK_SIZE;i++){
         temp+= SA[ty][i] * SB[i][tx];
       }
       __syncthreads();
     }
+
     int id = row * N + col;
     C[id] = temp;
  
