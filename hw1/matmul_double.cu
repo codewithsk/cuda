@@ -7,6 +7,7 @@
 #include <cstdlib>
 #include <math.h>
 
+# define BLK_SIZE 32
 #define EC(ans) { chkerr((ans), __FILE__, __LINE__); }
 inline void chkerr(cudaError_t code, const char *file, int line)
 {
@@ -56,12 +57,6 @@ void matmul_double_host(double* A, double* B, double* C, int M, int N, int K)
     }
 }
 
-__global__ void matmul_double(double* A, double* B , double* C, int M, int N, int K)
-{
-    int id = blockIdx.x * blockDim.x + threadIdx.x;
-    C[id] = (double) 1;
- 
-}
 
 void validate (double *host, double *gpu, int M, int N)
 {
@@ -78,6 +73,32 @@ void validate (double *host, double *gpu, int M, int N)
     }
 }
 
+__global__ void matmul_double(double* A, double* B , double* C, int M, int N, int K)
+{
+    int bx = blockIdx.x;
+    int by = blockIdx.y;
+    int tx = threadIdx.x;
+    int ty = threadIdx.y;
+
+    int row = by * blockDim.y + ty;
+    int col = bx * blockDim.x + tx;
+
+    double temp = 0;
+   
+    if(row >= M || col >= N)
+	    return;
+
+    //__shared__ float SA[BLK_SIZE][BLK_SIZE];
+    //__shared__ float SB[BLK_SIZE][BLK_SIZE];
+
+    for(int i=0;i<K;i++){
+      temp+= A[row*K + i] * B[i*N +col];
+    }
+    
+    int id = row * N + col;
+    C[id] = temp;
+ 
+}
 
 int main(int argc, char *argv[])
 {
@@ -114,19 +135,22 @@ int main(int argc, char *argv[])
     cudaMemcpy(dB, hB, K*N*sizeof(double), cudaMemcpyHostToDevice);
 
     /* call gpu kernel */
-    int BLK_SIZE = 64;
-    dim3 threads(BLK_SIZE);
-    dim3 grid(10);
+    dim3 threads(BLK_SIZE, BLK_SIZE);
+    dim3 grid(ceil(N/float(BLK_SIZE)),ceil(M/float(BLK_SIZE)));
+
+    printf("Number of threads in a block %dx%d\n",(int)BLK_SIZE, (int)BLK_SIZE);
+    printf("Number of blocks in a grid %dx%d\n",(int)ceil(N/float(BLK_SIZE)),(int)ceil(M/float(BLK_SIZE)));
 
     matmul_double<<<grid, threads>>>(dA, dB, dC, M, N, K);
-
+    
+    std::cerr << cudaGetErrorString(cudaGetLastError()) << std::endl;
+    
     /* Copy from device to host (dC -> dtohC) */
     cudaMemcpy(dtohC, dC, M*N*sizeof(double), cudaMemcpyDeviceToHost);
 
 
     /* host vs device validation */
     validate(hC, dtohC, M, N);
-
 
     /* be clean */
     free(hA);
