@@ -29,7 +29,7 @@ void init (double *mat, double *vec, int m , int n)
 
     for (int j = 0; j < n; ++j)
     {
-        vec[j] = j;
+        vec[j] = 1;
     }
 }
 
@@ -49,7 +49,18 @@ void matvec_h(double* mat, double*vec_in , double* vec_out, int m, int n)
 
 __global__ void matvec_d(double* mat, double*vec_in , double* vec_out, int m, int n)
 {
-    /// complete code
+    int id = blockIdx.x * blockDim.x + threadIdx.x;
+
+    
+    if(id<n){
+        double result = 0;
+        #pragma unroll 4 
+	for(int i=0;i<n;i++)
+        	result+=mat[id*n+i] * vec_in[i];
+        vec_out[id] = result;
+    }
+
+
 }
 
 void validate (double *host, double *gpu, int m)
@@ -80,9 +91,13 @@ int main(int argc, char *argv[])
     double *mat = (double*) malloc (m * n * sizeof(double));
     double *vec_in = (double*) malloc (n * sizeof(double));
     double *vec_out = (double*) malloc (m * sizeof(double));
+    double *vec_result = (double*) malloc (m * sizeof(double));
 
     /* Device alloc */
-    /// complete code
+    double *d_mat, *d_vec_in, *d_vec_out;
+    cudaMalloc(&d_mat, m*n*sizeof(double));
+    cudaMalloc(&d_vec_in, n*sizeof(double));
+    cudaMalloc(&d_vec_out, m*sizeof(double));
 
     /* Initialize host memory*/
     init(mat, vec_in, m, n);
@@ -92,19 +107,21 @@ int main(int argc, char *argv[])
 
 
     /* Copy from host to device */
-    /// complete code
-
+    cudaMemcpy(d_mat, mat, m*n*sizeof(double), cudaMemcpyHostToDevice);
+    cudaMemcpy(d_vec_in, vec_in, n*sizeof(double), cudaMemcpyHostToDevice);
 
     /* call gpu kernel */
-    /// complete code
+    dim3 threads(128);
+    dim3 grid((int)ceil(m/128.00));    
+    matvec_d<<<grid, threads>>>(d_mat, d_vec_in, d_vec_out,m,n);
 
     /* Copy from device to host */
-    /// complete code
+    cudaMemcpy(vec_result, d_vec_out,m*sizeof(double), cudaMemcpyDeviceToHost); 
 
 
     /* host vs device validation */
     /// REPLACE one vec_out with the result array that you moved from device to host
-    validate(vec_out, vec_out, m);
+    validate(vec_out, vec_result, m);
 
 
     /* be clean */
@@ -112,8 +129,9 @@ int main(int argc, char *argv[])
     free(vec_in);
     free(vec_out);
 
-    /// add code to free gpu memory
-
+    cudaFree(d_mat);
+    cudaFree(d_vec_out);
+    cudaFree(d_vec_in);
 
     return 0;
 }
