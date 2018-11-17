@@ -24,7 +24,7 @@ void init (double *A, double *B, int M , int N, int K)
     {
         for (int j = 0; j < K; ++j)
         {
-            A[i * K + j] = i; //i * K + j;
+            A[i * K + j] = 1; //i * K + j;
         }
     }
 
@@ -32,7 +32,7 @@ void init (double *A, double *B, int M , int N, int K)
     {
         for (int j = 0; j < K; ++j)
         {
-            B[i * K + j] = i; //i * N + j + 1;
+            B[i * K + j] = 1; //i * N + j + 1;
         }
     }
 
