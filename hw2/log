@@ -1,0 +1,230 @@
+rm -f spmm_csr_driver spmm_csr_driver.o mm_helper.o spmm_csc_driver spmm_csc_driver.o mm_helper.o spmm_opt_driver spmm_opt_driver.o mm_helper.o 
+nvcc  --gpu-architecture=compute_60 --gpu-code=sm_60 -O3 -c spmm_csr_driver.cu -o spmm_csr_driver.o
+gcc -O3 -c mm_helper.cpp -o mm_helper.o
+nvcc --gpu-architecture=compute_60 --gpu-code=sm_60 -O3 spmm_csr_driver.o mm_helper.o -o spmm_csr_driver
+Change line the above line in Makefile to "all: $(EXECSR) $(EXECSC)" to build both CSR and CSC versions
+Change line the above line in Makefile to "all: $(EXECSR) $(EXECSC) $(EXEOPT)" to build both CSR, CSC and OPT versions
+small
+5 4 10 31
+Verification succeeded
+Kernel elapsed time: 7.9936e-08(s)
+small
+5 4 10 32
+Verification succeeded
+Kernel elapsed time: 6.8544e-08(s)
+small
+5 4 10 33
+Verification succeeded
+Kernel elapsed time: 8.2752e-08(s)
+small
+5 4 10 34
+Verification succeeded
+Kernel elapsed time: 7.2096e-08(s)
+small
+5 4 10 35
+Verification succeeded
+Kernel elapsed time: 7.5744e-08(s)
+small
+5 4 10 64
+Verification succeeded
+Kernel elapsed time: 1.07136e-07(s)
+small
+5 4 10 128
+Verification succeeded
+Kernel elapsed time: 1.83616e-07(s)
+ash608
+608 188 1216 31
+Verification succeeded
+Kernel elapsed time: 7.3088e-08(s)
+ash608
+608 188 1216 32
+Verification succeeded
+Kernel elapsed time: 6.6816e-08(s)
+ash608
+608 188 1216 33
+Verification succeeded
+Kernel elapsed time: 7.5744e-08(s)
+ash608
+608 188 1216 34
+Verification succeeded
+Kernel elapsed time: 7.2576e-08(s)
+ash608
+608 188 1216 35
+Verification succeeded
+Kernel elapsed time: 7.6608e-08(s)
+ash608
+608 188 1216 64
+Verification succeeded
+Kernel elapsed time: 1.04992e-07(s)
+ash608
+608 188 1216 128
+Verification succeeded
+Kernel elapsed time: 1.84672e-07(s)
+dwt_1007
+1007 1007 4791 31
+Verification succeeded
+Kernel elapsed time: 1.35104e-07(s)
+dwt_1007
+1007 1007 4791 32
+Verification succeeded
+Kernel elapsed time: 1.41536e-07(s)
+dwt_1007
+1007 1007 4791 33
+Verification succeeded
+Kernel elapsed time: 1.43904e-07(s)
+dwt_1007
+1007 1007 4791 34
+Verification succeeded
+Kernel elapsed time: 1.43616e-07(s)
+dwt_1007
+1007 1007 4791 35
+Verification succeeded
+Kernel elapsed time: 1.50912e-07(s)
+dwt_1007
+1007 1007 4791 64
+Verification succeeded
+Kernel elapsed time: 2.37696e-07(s)
+dwt_1007
+1007 1007 4791 128
+Verification succeeded
+Kernel elapsed time: 4.48512e-07(s)
+kron_g500-logn18
+262144 262144 10583222 31
+Verification succeeded
+Kernel elapsed time: 0.000446051(s)
+kron_g500-logn18
+262144 262144 10583222 32
+Verification succeeded
+Kernel elapsed time: 0.000454177(s)
+kron_g500-logn18
+262144 262144 10583222 33
+Verification succeeded
+Kernel elapsed time: 0.000462248(s)
+kron_g500-logn18
+262144 262144 10583222 34
+Verification succeeded
+Kernel elapsed time: 0.000499675(s)
+kron_g500-logn18
+262144 262144 10583222 35
+Verification succeeded
+Kernel elapsed time: 0.000505722(s)
+kron_g500-logn18
+262144 262144 10583222 64
+Verification succeeded
+Kernel elapsed time: 0.000965614(s)
+kron_g500-logn18
+262144 262144 10583222 128
+Verification succeeded
+Kernel elapsed time: 0.00199002(s)
+rajat31
+4690002 4690002 20316253 31
+Verification succeeded
+Kernel elapsed time: 0.000405805(s)
+rajat31
+4690002 4690002 20316253 32
+Verification succeeded
+Kernel elapsed time: 0.000391606(s)
+rajat31
+4690002 4690002 20316253 33
+Verification succeeded
+Kernel elapsed time: 0.000443882(s)
+rajat31
+4690002 4690002 20316253 34
+Verification succeeded
+Kernel elapsed time: 0.000469112(s)
+rajat31
+4690002 4690002 20316253 35
+Verification succeeded
+Kernel elapsed time: 0.000494045(s)
+rajat31
+4690002 4690002 20316253 64
+Verification succeeded
+Kernel elapsed time: 0.000794439(s)
+rajat31
+4690002 4690002 20316253 128
+Verification succeeded
+Kernel elapsed time: 0.00252365(s)
+TEM181302_M
+181302 181302 4010157 31
+Verification succeeded
+Kernel elapsed time: 9.4394e-05(s)
+TEM181302_M
+181302 181302 4010157 32
+Verification succeeded
+Kernel elapsed time: 9.62204e-05(s)
+TEM181302_M
+181302 181302 4010157 33
+Verification succeeded
+Kernel elapsed time: 0.000100343(s)
+TEM181302_M
+181302 181302 4010157 34
+Verification succeeded
+Kernel elapsed time: 0.000106564(s)
+TEM181302_M
+181302 181302 4010157 35
+Verification succeeded
+Kernel elapsed time: 0.000110375(s)
+TEM181302_M
+181302 181302 4010157 64
+Verification succeeded
+Kernel elapsed time: 0.000185521(s)
+TEM181302_M
+181302 181302 4010157 128
+Verification succeeded
+Kernel elapsed time: 0.000490031(s)
+TEM27623_M
+27623 27623 233546 31
+Verification succeeded
+Kernel elapsed time: 4.04141e-06(s)
+TEM27623_M
+27623 27623 233546 32
+Verification succeeded
+Kernel elapsed time: 4.02285e-06(s)
+TEM27623_M
+27623 27623 233546 33
+Verification succeeded
+Kernel elapsed time: 4.39715e-06(s)
+TEM27623_M
+27623 27623 233546 34
+Verification succeeded
+Kernel elapsed time: 4.57933e-06(s)
+TEM27623_M
+27623 27623 233546 35
+Verification succeeded
+Kernel elapsed time: 4.82522e-06(s)
+TEM27623_M
+27623 27623 233546 64
+Verification succeeded
+Kernel elapsed time: 8.77162e-06(s)
+TEM27623_M
+27623 27623 233546 128
+Verification succeeded
+Kernel elapsed time: 2.21553e-05(s)
+wiki-Vote
+8297 8297 103689 31
+Verification succeeded
+Kernel elapsed time: 0.000243984(s)
+wiki-Vote
+8297 8297 103689 32
+Verification succeeded
+Kernel elapsed time: 0.000251141(s)
+wiki-Vote
+8297 8297 103689 33
+Verification succeeded
+Kernel elapsed time: 0.000256653(s)
+wiki-Vote
+8297 8297 103689 34
+Verification succeeded
+Kernel elapsed time: 0.000269099(s)
+wiki-Vote
+8297 8297 103689 35
+Verification succeeded
+Kernel elapsed time: 0.000276777(s)
+wiki-Vote
+8297 8297 103689 64
+Verification succeeded
+Kernel elapsed time: 0.000481104(s)
+wiki-Vote
+8297 8297 103689 128
+Verification succeeded
+Kernel elapsed time: 0.000971356(s)

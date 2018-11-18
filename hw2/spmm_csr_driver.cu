@@ -154,7 +154,13 @@ int main(int argc, char *argv[]) {
     dim3 threads(num_threads);
     dim3 grid(ceil(mat.nrows/num_threads));
 
-    cudaStream_t stream;
+    int stream_count = 6;
+
+    cudaStream_t *streams = new cudaStream_t[stream_count];
+
+    for(int i=0;i<stream_count;i++){
+        cudaStreamCreate(&streams[i]);
+    }
 
     cudaMalloc(&dmat_in_d, mat.ncols * K * sizeof(double));
     cudaMalloc(&dmat_out_d, mat.nrows * K * sizeof(double));
@@ -162,24 +168,40 @@ int main(int argc, char *argv[]) {
     cudaMalloc(&col_idx_d, mat.nnz * sizeof(unsigned int));
     cudaMalloc(&val_d, mat.nnz * sizeof(double));
 
-    cudaStreamCreate(&stream);
-    cudaMemcpyAsync(dmat_in_d, dmat_in, mat.ncols * K * sizeof(double), cudaMemcpyHostToDevice, stream);
-    cudaMemcpyAsync(row_idx_d, mat_pinned->row_indx, mat.nrows * sizeof(unsigned int), cudaMemcpyHostToDevice, stream);
-    cudaMemcpyAsync(col_idx_d, mat_pinned->col_id, mat.nnz * sizeof(unsigned int), cudaMemcpyHostToDevice, stream);
-    cudaMemcpyAsync(val_d, mat_pinned->values, mat.nnz * sizeof(double), cudaMemcpyHostToDevice, stream);
-
+    cudaMemcpyAsync(dmat_in_d, dmat_in, mat.ncols * K * sizeof(double), cudaMemcpyHostToDevice, streams[0]);
+    cudaMemcpyAsync(row_idx_d, mat_pinned->row_indx, mat.nrows * sizeof(unsigned int), cudaMemcpyHostToDevice, streams[1]);
+    cudaMemcpyAsync(col_idx_d, mat_pinned->col_id, mat.nnz * sizeof(unsigned int), cudaMemcpyHostToDevice, streams[2]);
+    cudaMemcpyAsync(val_d, mat_pinned->values, mat.nnz * sizeof(double), cudaMemcpyHostToDevice, streams[3]);
+    for(int i=0;i<stream_count;i++){
+        cudaStreamSynchronize(streams[i]);
+    }
     /* Compute product */
 
-    dev_csr_spmm<<<grid, threads,0,stream>>>(dmat_in_d, dmat_out_d, row_idx_d, col_idx_d, val_d, mat_pinned->nrows, mat_pinned->ncols, mat_pinned->nnz, K);
+    cudaEvent_t start, stop;
+    cudaEventCreate(&start);
+    cudaEventCreate(&stop);
+
+    cudaEventRecord(start);
+    dev_csr_spmm<<<grid, threads,0,streams[4]>>>(dmat_in_d, dmat_out_d, row_idx_d, col_idx_d, val_d, mat_pinned->nrows, mat_pinned->ncols, mat_pinned->nnz, K);
+    cudaEventRecord(stop);
+    
+    cudaDeviceSynchronize();
 
     /* Move result back to host */
-    cudaMemcpyAsync(dmat_result, dmat_out_d, mat.nrows * K * sizeof(double), cudaMemcpyDeviceToHost); 
+    cudaMemcpyAsync(dmat_result, dmat_out_d, mat.nrows * K * sizeof(double), cudaMemcpyDeviceToHost, streams[5]); 
+    cudaStreamSynchronize(streams[5]);
 
-    cudaStreamSynchronize(stream);
-    cudaStreamDestroy(stream);
+    for(int i=0;i<stream_count;i++){
+        cudaStreamDestroy(streams[i]);
+    }
 
     //std::cout << "replace one argument to the below function with the values from gpu " << std::endl;
     check_dmat(dmat_out, dmat_result, mat.nrows, K);
+
+    float milliseconds = 0;
+    cudaEventElapsedTime(&milliseconds, start, stop);
+
+    std::cout<<"Kernel elapsed time: "<<milliseconds/1e6<<"(s)"<<std::endl; 
 
     //print_dmat(dmat_out, mat.nrows, K);
 

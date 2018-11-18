@@ -75,6 +75,24 @@ void host_csc_spmm(CSC mat, double * dmat_in, double * dmat_out, unsigned int K)
     }
 }
 
+__global__ void dev_csc_spmm(double *D, double *O, unsigned int *row_indx, unsigned int *col_id, double *values, unsigned int nrows, unsigned int ncols, unsigned int nnz, int K){
+	int id = blockIdx.x * blockDim.x + threadIdx.x;
+
+	if(id >= ncols) return;
+
+	int end_idx = col_indx[id+1];
+	if(id+1 >= ncols){
+		end_idx = nnz;
+	}
+
+	for(int j=col_indx[id];j<end_idx;j++){
+		for(int k=0;k<K;k++){
+			O[id * K + k] += values[j] * D[col_id[j] * K + k];
+		}
+	}
+
+}
+
 int main(int argc, char *argv[]) {
     if(argc < 3) {
         std::cerr << "usage ./exec inputfile K  " << std::endl;
@@ -85,13 +103,68 @@ int main(int argc, char *argv[]) {
     CSC mat = read_matrix_market_to_CSC(argv[1]);
     std::cout << mat.nrows << ' ' << mat.ncols << ' ' << mat.nnz << ' ' << K << '\n';
 
-    double *dmat_in = (double*)malloc(mat.ncols * K  * sizeof(double));
-    double *dmat_out = (double*)malloc(mat.nrows * K * sizeof(double));
+    CSC *mat_pinned;
+    cudaMallocHost(&mat_pinned, sizeof(CSR));
+
+    memcpy(&(mat_pinned->col_indx), &(mat.col_indx), sizeof(mat.col_indx));
+    memcpy(&(mat_pinned->row_id), &(mat.row_id), sizeof(mat.row_id));
+    memcpy(&(mat_pinned->values), &(mat.values), sizeof(mat.values));
+    memcpy(&(mat_pinned->nrows), &(mat.nrows), sizeof(mat.nrows));
+    memcpy(&(mat_pinned->ncols), &(mat.ncols), sizeof(mat.ncols));
+    memcpy(&(mat_pinned->nnz), &(mat.nnz), sizeof(mat.nnz));
+
+    //double *dmat_in = (double*)malloc(mat.ncols * K  * sizeof(double));
+    //double *dmat_out = (double*)malloc(mat.nrows * K * sizeof(double));
+
+    double *dmat_in, *dmat_out, *dmat_result;
+    cudaMallocHost(&dmat_in, mat.ncols * K  * sizeof(double));
+    cudaMallocHost(&dmat_out, mat.nrows * K * sizeof(double));
+    cudaMallocHost(&dmat_result, mat.nrows * K * sizeof(double));
+
 
     init_dmat(dmat_in, mat.ncols, K, 1.0);
     //print_dmat(dmat_in, mat.ncols, K);
 
     host_csc_spmm(mat, dmat_in, dmat_out, K);
+
+    double *dmat_in_d, *dmat_out_d, *val_d;
+    unsigned int *row_idx_d, *col_idx_d;
+ 
+    /* Allocate memory for device variables and move variables to device*/
+    const float num_threads = 128;
+    dim3 threads(num_threads);
+    dim3 grid(ceil(mat.ncol/num_threads));
+
+    cudaStream_t stream;
+
+    cudaMalloc(&dmat_in_d, mat.ncols * K * sizeof(double));
+    cudaMalloc(&dmat_out_d, mat.nrows * K * sizeof(double));
+    cudaMalloc(&row_idx_d, mat.nnz * sizeof(unsigned int));
+    cudaMalloc(&col_idx_d, mat.ncols * sizeof(unsigned int));
+    cudaMalloc(&val_d, mat.nnz * sizeof(double));
+
+    cudaStreamCreate(&stream);
+    cudaMemcpyAsync(dmat_in_d, dmat_in, mat.ncols * K * sizeof(double), cudaMemcpyHostToDevice, stream);
+    cudaMemcpyAsync(row_idx_d, mat_pinned->row_id, mat.nnz * sizeof(unsigned int), cudaMemcpyHostToDevice, stream);
+    cudaMemcpyAsync(col_idx_d, mat_pinned->col_indx, mat.ncols * sizeof(unsigned int), cudaMemcpyHostToDevice, stream);
+    cudaMemcpyAsync(val_d, mat_pinned->values, mat.nnz * sizeof(double), cudaMemcpyHostToDevice, stream);
+
+    /* Compute product */
+
+    cudaEvent_t start, stop;
+    cudaEventCreate(&start);
+    cudaEventCreate(&stop);
+
+    cudaEventRecord(start);
+    dev_csc_spmm<<<grid, threads,0,stream>>>(dmat_in_d, dmat_out_d, row_idx_d, col_idx_d, val_d, mat_pinned->nrows, mat_pinned->ncols, mat_pinned->nnz, K);
+    cudaEventRecord(stop);
+
+    /* Move result back to host */
+    cudaMemcpyAsync(dmat_result, dmat_out_d, mat.nrows * K * sizeof(double), cudaMemcpyDeviceToHost); 
+
+    cudaEventRecord(stop);
+    cudaStreamSynchronize(stream);
+    cudaStreamDestroy(stream);
 
 
     std::cout << "replace one argument to the below function with the values from gpu " << std::endl;
