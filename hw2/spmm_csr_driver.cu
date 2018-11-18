@@ -11,7 +11,7 @@
 #include "sparse_representation.hpp"
 #include <iostream>
 
-void check_dmat(double* a, double *b, unsigned int n, unsigned int K, bool quit_on_err = true ) {
+void check_dmat(double* a, double *b, unsigned int n, unsigned int K, bool quit_on_err = true) {
     for (unsigned int i = 0; i < n; ++i) {
         for (unsigned int k = 0; k < K; ++k) {
             if(std::abs(a[i * K + k] - b[i * K + k]) > 1e-1) {
@@ -88,32 +88,86 @@ void host_csr_spmm(CSR &mat, double * dmat_in, double * dmat_out, unsigned int K
     }
 }
 
+__global__ void dev_csr_spmm(double *D, double *O, unsigned int *row_indx, unsigned int *col_id, double *values, unsigned int nrows, unsigned int ncols, unsigned int nnz, int K){
+	int id = blockIdx.x * blockDim.x + threadIdx.x;
+
+	if(id >= nrows) return;
+
+	int end_idx = row_indx[id+1];
+	if(id+1 >= nrows){
+		end_idx = nnz;
+	}
+
+	for(int j=row_indx[id];j<end_idx;j++){
+		for(int k=0;k<K;k++){
+			O[id * K + k] += values[j] * D[col_id[j] * K + k];
+		}
+	}
+
+}
+
+
 int main(int argc, char *argv[]) {
     if(argc < 3) {
         std::cerr << "usage ./exec inputfile K  " << std::endl;
         exit(-1);
     }
 
+    /* Read data */
     unsigned int K = std::atoi(argv[2]);
     CSR mat = read_matrix_market_to_CSR(argv[1]);
+
     //print_CSR(mat);
     std::cout << mat.nrows << ' ' << mat.ncols << ' ' << mat.nnz << ' ' << K << '\n';
 
+    /* Allocate space on host */
     double *dmat_in = (double*)malloc(mat.ncols * K  * sizeof(double));
     double *dmat_out = (double*)malloc(mat.nrows * K * sizeof(double));
+    double *dmat_result = (double*)malloc(mat.nrows * K * sizeof(double));
 
+    /* Initialize dense matrix*/
     init_dmat(dmat_in, mat.ncols, K,  1.0);
     //print_dmat(dmat_in, mat.ncols, K);
 
+    /* Compute SpMM on host */
     host_csr_spmm(mat, dmat_in, dmat_out, K);
 
 
-    std::cout << "replace one argument to the below function with the values from gpu " << std::endl;
-    check_dmat(dmat_out, dmat_out, mat.nrows, K);
+    /* Declare device pointers */
+    double *dmat_in_d, *dmat_out_d, *val_d;
+    unsigned int *row_idx_d, *col_idx_d;
+  
+    /* Allocate memory for device variables and move variables to device*/
+    cudaMalloc(&dmat_in_d, mat.ncols * K * sizeof(double));
+    cudaMemcpy(dmat_in_d, dmat_in, mat.ncols * K * sizeof(double), cudaMemcpyHostToDevice);
+    
+    cudaMalloc(&dmat_out_d, mat.nrows * K * sizeof(double));
+    
+    cudaMalloc(&row_idx_d, mat.nrows * sizeof(unsigned int));
+    cudaMemcpy(row_idx_d, mat.row_indx, mat.nrows * sizeof(unsigned int), cudaMemcpyHostToDevice);
+    
+    cudaMalloc(&col_idx_d, mat.nnz * sizeof(unsigned int));
+    cudaMemcpy(col_idx_d, mat.col_id, mat.nnz * sizeof(unsigned int), cudaMemcpyHostToDevice);
+    
+    cudaMalloc(&val_d, mat.nnz * sizeof(double));
+    cudaMemcpy(val_d, mat.values, mat.nnz * sizeof(double), cudaMemcpyHostToDevice);
+
+    /* Compute product */
+    const float num_threads = 128;
+    dim3 threads(num_threads);
+    dim3 grid(ceil(mat.nrows/num_threads));
+
+    dev_csr_spmm<<<grid, threads>>>(dmat_in_d, dmat_out_d, row_idx_d, col_idx_d, val_d, mat.nrows, mat.ncols, mat.nnz, K);
+
+    /* Move result back to host */
+    cudaMemcpy(dmat_result, dmat_out_d, mat.nrows * K * sizeof(double), cudaMemcpyDeviceToHost); 
+
+    //std::cout << "replace one argument to the below function with the values from gpu " << std::endl;
+    check_dmat(dmat_out, dmat_result, mat.nrows, K);
 
     //print_dmat(dmat_out, mat.nrows, K);
 
-
+    /* Free up space on host */
     free(mat.row_indx);
     free(mat.col_id);
     free(mat.values);
