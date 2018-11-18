@@ -121,9 +121,16 @@ int main(int argc, char *argv[]) {
     std::cout << mat.nrows << ' ' << mat.ncols << ' ' << mat.nnz << ' ' << K << '\n';
 
     /* Allocate space on host */
-    double *dmat_in = (double*)malloc(mat.ncols * K  * sizeof(double));
-    double *dmat_out = (double*)malloc(mat.nrows * K * sizeof(double));
-    double *dmat_result = (double*)malloc(mat.nrows * K * sizeof(double));
+    double *dmat_in, *dmat_out, *dmat_result;
+
+    //dmat_in = (double*)malloc(mat.ncols * K  * sizeof(double));
+    //dmat_out = (double*)malloc(mat.nrows * K * sizeof(double));
+    //dmat_result = (double*)malloc(mat.nrows * K * sizeof(double));
+
+    cudaMallocHost(&dmat_in, mat.ncols * K  * sizeof(double));
+    cudaMallocHost(&dmat_out, mat.nrows * K * sizeof(double));
+    cudaMallocHost(&dmat_result, mat.nrows * K * sizeof(double));
+
 
     /* Initialize dense matrix*/
     init_dmat(dmat_in, mat.ncols, K,  1.0);
