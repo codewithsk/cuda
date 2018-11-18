@@ -133,14 +133,9 @@ int main(int argc, char *argv[]) {
     /* Allocate space on host */
     double *dmat_in, *dmat_out, *dmat_result;
 
-    //dmat_in = (double*)malloc(mat.ncols * K  * sizeof(double));
-    //dmat_out = (double*)malloc(mat.nrows * K * sizeof(double));
-    //dmat_result = (double*)malloc(mat.nrows * K * sizeof(double));
-
     cudaMallocHost(&dmat_in, mat.ncols * K  * sizeof(double));
     cudaMallocHost(&dmat_out, mat.nrows * K * sizeof(double));
     cudaMallocHost(&dmat_result, mat.nrows * K * sizeof(double));
-
 
     /* Initialize dense matrix*/
     init_dmat(dmat_in, mat.ncols, K,  1.0);
@@ -155,29 +150,33 @@ int main(int argc, char *argv[]) {
     unsigned int *row_idx_d, *col_idx_d;
  
     /* Allocate memory for device variables and move variables to device*/
-    cudaMalloc(&dmat_in_d, mat.ncols * K * sizeof(double));
-    cudaMemcpy(dmat_in_d, dmat_in, mat.ncols * K * sizeof(double), cudaMemcpyHostToDevice);
-    
-    cudaMalloc(&dmat_out_d, mat.nrows * K * sizeof(double));
-    
-    cudaMalloc(&row_idx_d, mat.nrows * sizeof(unsigned int));
-    cudaMemcpy(row_idx_d, mat_pinned->row_indx, mat.nrows * sizeof(unsigned int), cudaMemcpyHostToDevice);
-    
-    cudaMalloc(&col_idx_d, mat.nnz * sizeof(unsigned int));
-    cudaMemcpy(col_idx_d, mat_pinned->col_id, mat.nnz * sizeof(unsigned int), cudaMemcpyHostToDevice);
-    
-    cudaMalloc(&val_d, mat.nnz * sizeof(double));
-    cudaMemcpy(val_d, mat_pinned->values, mat.nnz * sizeof(double), cudaMemcpyHostToDevice);
-
-    /* Compute product */
     const float num_threads = 128;
     dim3 threads(num_threads);
     dim3 grid(ceil(mat.nrows/num_threads));
 
-    dev_csr_spmm<<<grid, threads>>>(dmat_in_d, dmat_out_d, row_idx_d, col_idx_d, val_d, mat_pinned->nrows, mat_pinned->ncols, mat_pinned->nnz, K);
+    cudaStream_t stream;
+
+    cudaMalloc(&dmat_in_d, mat.ncols * K * sizeof(double));
+    cudaMalloc(&dmat_out_d, mat.nrows * K * sizeof(double));
+    cudaMalloc(&row_idx_d, mat.nrows * sizeof(unsigned int));
+    cudaMalloc(&col_idx_d, mat.nnz * sizeof(unsigned int));
+    cudaMalloc(&val_d, mat.nnz * sizeof(double));
+
+    cudaStreamCreate(&stream);
+    cudaMemcpyAsync(dmat_in_d, dmat_in, mat.ncols * K * sizeof(double), cudaMemcpyHostToDevice, stream);
+    cudaMemcpyAsync(row_idx_d, mat_pinned->row_indx, mat.nrows * sizeof(unsigned int), cudaMemcpyHostToDevice, stream);
+    cudaMemcpyAsync(col_idx_d, mat_pinned->col_id, mat.nnz * sizeof(unsigned int), cudaMemcpyHostToDevice, stream);
+    cudaMemcpyAsync(val_d, mat_pinned->values, mat.nnz * sizeof(double), cudaMemcpyHostToDevice, stream);
+
+    /* Compute product */
+
+    dev_csr_spmm<<<grid, threads,0,stream>>>(dmat_in_d, dmat_out_d, row_idx_d, col_idx_d, val_d, mat_pinned->nrows, mat_pinned->ncols, mat_pinned->nnz, K);
 
     /* Move result back to host */
-    cudaMemcpy(dmat_result, dmat_out_d, mat.nrows * K * sizeof(double), cudaMemcpyDeviceToHost); 
+    cudaMemcpyAsync(dmat_result, dmat_out_d, mat.nrows * K * sizeof(double), cudaMemcpyDeviceToHost); 
+
+    cudaStreamSynchronize(stream);
+    cudaStreamDestroy(stream);
 
     //std::cout << "replace one argument to the below function with the values from gpu " << std::endl;
     check_dmat(dmat_out, dmat_result, mat.nrows, K);
