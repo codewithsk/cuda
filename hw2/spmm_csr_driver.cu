@@ -117,6 +117,16 @@ int main(int argc, char *argv[]) {
     unsigned int K = std::atoi(argv[2]);
     CSR mat = read_matrix_market_to_CSR(argv[1]);
 
+    CSR *mat_pinned;
+    cudaMallocHost(&mat_pinned, sizeof(CSR));
+
+    memcpy(&(mat_pinned->row_indx), &(mat.row_indx), sizeof(mat.row_indx));
+    memcpy(&(mat_pinned->col_id), &(mat.col_id), sizeof(mat.col_id));
+    memcpy(&(mat_pinned->values), &(mat.values), sizeof(mat.values));
+    memcpy(&(mat_pinned->nrows), &(mat.nrows), sizeof(mat.nrows));
+    memcpy(&(mat_pinned->ncols), &(mat.ncols), sizeof(mat.ncols));
+    memcpy(&(mat_pinned->nnz), &(mat.nnz), sizeof(mat.nnz));
+
     //print_CSR(mat);
     std::cout << mat.nrows << ' ' << mat.ncols << ' ' << mat.nnz << ' ' << K << '\n';
 
@@ -143,7 +153,7 @@ int main(int argc, char *argv[]) {
     /* Declare device pointers */
     double *dmat_in_d, *dmat_out_d, *val_d;
     unsigned int *row_idx_d, *col_idx_d;
-  
+ 
     /* Allocate memory for device variables and move variables to device*/
     cudaMalloc(&dmat_in_d, mat.ncols * K * sizeof(double));
     cudaMemcpy(dmat_in_d, dmat_in, mat.ncols * K * sizeof(double), cudaMemcpyHostToDevice);
@@ -151,20 +161,20 @@ int main(int argc, char *argv[]) {
     cudaMalloc(&dmat_out_d, mat.nrows * K * sizeof(double));
     
     cudaMalloc(&row_idx_d, mat.nrows * sizeof(unsigned int));
-    cudaMemcpy(row_idx_d, mat.row_indx, mat.nrows * sizeof(unsigned int), cudaMemcpyHostToDevice);
+    cudaMemcpy(row_idx_d, mat_pinned->row_indx, mat.nrows * sizeof(unsigned int), cudaMemcpyHostToDevice);
     
     cudaMalloc(&col_idx_d, mat.nnz * sizeof(unsigned int));
-    cudaMemcpy(col_idx_d, mat.col_id, mat.nnz * sizeof(unsigned int), cudaMemcpyHostToDevice);
+    cudaMemcpy(col_idx_d, mat_pinned->col_id, mat.nnz * sizeof(unsigned int), cudaMemcpyHostToDevice);
     
     cudaMalloc(&val_d, mat.nnz * sizeof(double));
-    cudaMemcpy(val_d, mat.values, mat.nnz * sizeof(double), cudaMemcpyHostToDevice);
+    cudaMemcpy(val_d, mat_pinned->values, mat.nnz * sizeof(double), cudaMemcpyHostToDevice);
 
     /* Compute product */
     const float num_threads = 128;
     dim3 threads(num_threads);
     dim3 grid(ceil(mat.nrows/num_threads));
 
-    dev_csr_spmm<<<grid, threads>>>(dmat_in_d, dmat_out_d, row_idx_d, col_idx_d, val_d, mat.nrows, mat.ncols, mat.nnz, K);
+    dev_csr_spmm<<<grid, threads>>>(dmat_in_d, dmat_out_d, row_idx_d, col_idx_d, val_d, mat_pinned->nrows, mat_pinned->ncols, mat_pinned->nnz, K);
 
     /* Move result back to host */
     cudaMemcpy(dmat_result, dmat_out_d, mat.nrows * K * sizeof(double), cudaMemcpyDeviceToHost); 
